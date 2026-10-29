@@ -6,8 +6,8 @@ compatibility_date = "2025-10-24"
 API_SECRET = "change-this-to-your-production-secret"
 
 [[kv_namespaces]]
-binding = "PHONE_DATA"
-id = "your-kv-namespace-id-here"
+binding = "FIND_KV"
+id = "8e3b5445634b487a9daf1e31cbb63bdf"
 
 [triggers]
 crons = []
