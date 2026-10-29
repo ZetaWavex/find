@@ -1,5 +1,5 @@
 export interface Env {
-  PHONE_DATA: KVNamespace;
+  FIND_KV: KVNamespace;
   API_SECRET: string;
 }
 
@@ -73,9 +73,9 @@ export default {
           name: "Find Phone Tool API",
           version: "1.0.0",
           endpoints: {
-            register: "POST /api/register - 注册新设备",
+            register: "POST /api/register - 注册新设�?,
             heartbeat: "POST /api/heartbeat - 设备心跳",
-            status: "GET /api/status?id=DEVICE_ID&secret=SECRET - 查询响铃状态",
+            status: "GET /api/status?id=DEVICE_ID&secret=SECRET - 查询响铃状�?,
             ring: "POST /api/ring - 触发响铃",
             stop: "POST /api/stop - 停止响铃",
           },
@@ -95,7 +95,7 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
   const { id, secret } = body;
 
   if (!id || !secret) {
-    return jsonResponse({ error: "设备ID和密钥不能为空" }, 400);
+    return jsonResponse({ error: "设备ID和密钥不能为�? }, 400);
   }
 
   const secretHash = await hashSecret(secret);
@@ -105,8 +105,8 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
     createdAt: Date.now(),
   };
 
-  await env.PHONE_DATA.put(`device:${id}`, JSON.stringify(device));
-  await env.PHONE_DATA.put(`ring:${id}`, JSON.stringify({
+  await env.FIND_KV.put(`device:${id}`, JSON.stringify(device));
+  await env.FIND_KV.put(`ring:${id}`, JSON.stringify({
     ring: false,
     message: "",
     timestamp: Date.now(),
@@ -124,12 +124,12 @@ async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
   const { id, secret } = body;
 
   if (!id || !secret) {
-    return jsonResponse({ error: "设备ID和密钥不能为空" }, 400);
+    return jsonResponse({ error: "设备ID和密钥不能为�? }, 400);
   }
 
-  const deviceRaw = await env.PHONE_DATA.get(`device:${id}`);
+  const deviceRaw = await env.FIND_KV.get(`device:${id}`);
   if (!deviceRaw) {
-    return jsonResponse({ error: "设备未注册" }, 404);
+    return jsonResponse({ error: "设备未注�? }, 404);
   }
 
   const device = JSON.parse(deviceRaw) as DeviceRegistration;
@@ -140,7 +140,7 @@ async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
   }
 
   device.lastHeartbeat = Date.now();
-  await env.PHONE_DATA.put(`device:${id}`, JSON.stringify(device));
+  await env.FIND_KV.put(`device:${id}`, JSON.stringify(device));
 
   return jsonResponse({ success: true });
 }
@@ -150,12 +150,12 @@ async function handleStatus(url: URL, env: Env): Promise<Response> {
   const secret = url.searchParams.get("secret");
 
   if (!id || !secret) {
-    return jsonResponse({ error: "缺少参数 id 或 secret" }, 400);
+    return jsonResponse({ error: "缺少参数 id �?secret" }, 400);
   }
 
-  const deviceRaw = await env.PHONE_DATA.get(`device:${id}`);
+  const deviceRaw = await env.FIND_KV.get(`device:${id}`);
   if (!deviceRaw) {
-    return jsonResponse({ error: "设备未注册" }, 404);
+    return jsonResponse({ error: "设备未注�? }, 404);
   }
 
   const device = JSON.parse(deviceRaw) as DeviceRegistration;
@@ -165,14 +165,14 @@ async function handleStatus(url: URL, env: Env): Promise<Response> {
     return jsonResponse({ error: "密钥错误" }, 401);
   }
 
-  const ringRaw = await env.PHONE_DATA.get(`ring:${id}`);
+  const ringRaw = await env.FIND_KV.get(`ring:${id}`);
   let ringData: RingSignal;
 
   if (ringRaw) {
     ringData = JSON.parse(ringRaw) as RingSignal;
     if (ringData.ring && Date.now() - ringData.timestamp > 5 * 60 * 1000) {
       ringData = { ring: false, message: "", timestamp: Date.now() };
-      await env.PHONE_DATA.put(`ring:${id}`, JSON.stringify(ringData));
+      await env.FIND_KV.put(`ring:${id}`, JSON.stringify(ringData));
     }
   } else {
     ringData = { ring: false, message: "", timestamp: Date.now() };
@@ -180,7 +180,7 @@ async function handleStatus(url: URL, env: Env): Promise<Response> {
 
   if (ringData.ring) {
     ringData.ring = false;
-    await env.PHONE_DATA.put(`ring:${id}`, JSON.stringify(ringData));
+    await env.FIND_KV.put(`ring:${id}`, JSON.stringify(ringData));
   }
 
   return jsonResponse({
@@ -193,7 +193,7 @@ async function handleStatus(url: URL, env: Env): Promise<Response> {
 async function handleRing(request: Request, env: Env): Promise<Response> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return jsonResponse({ error: "需要 Authorization: Bearer API_SECRET" }, 401);
+    return jsonResponse({ error: "需�?Authorization: Bearer API_SECRET" }, 401);
   }
 
   const providedSecret = authHeader.slice(7);
@@ -202,10 +202,10 @@ async function handleRing(request: Request, env: Env): Promise<Response> {
   }
 
   const body = await request.json<{ id: string; message?: string }>();
-  const { id, message = "手机响铃中" } = body;
+  const { id, message = "手机响铃�? } = body;
 
   if (!id) {
-    return jsonResponse({ error: "需要设备 ID" }, 400);
+    return jsonResponse({ error: "需要设�?ID" }, 400);
   }
 
   const signal: RingSignal = {
@@ -214,18 +214,18 @@ async function handleRing(request: Request, env: Env): Promise<Response> {
     timestamp: Date.now(),
   };
 
-  await env.PHONE_DATA.put(`ring:${id}`, JSON.stringify(signal));
+  await env.FIND_KV.put(`ring:${id}`, JSON.stringify(signal));
 
   return jsonResponse({
     success: true,
-    message: `已触发设备 ${id} 响铃`,
+    message: `已触发设�?${id} 响铃`,
   });
 }
 
 async function handleStop(request: Request, env: Env): Promise<Response> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return jsonResponse({ error: "需要 Authorization: Bearer API_SECRET" }, 401);
+    return jsonResponse({ error: "需�?Authorization: Bearer API_SECRET" }, 401);
   }
 
   const providedSecret = authHeader.slice(7);
@@ -237,10 +237,10 @@ async function handleStop(request: Request, env: Env): Promise<Response> {
   const { id } = body;
 
   if (!id) {
-    return jsonResponse({ error: "需要设备 ID" }, 400);
+    return jsonResponse({ error: "需要设�?ID" }, 400);
   }
 
-  await env.PHONE_DATA.put(`ring:${id}`, JSON.stringify({
+  await env.FIND_KV.put(`ring:${id}`, JSON.stringify({
     ring: false,
     message: "",
     timestamp: Date.now(),
@@ -248,6 +248,6 @@ async function handleStop(request: Request, env: Env): Promise<Response> {
 
   return jsonResponse({
     success: true,
-    message: `已停止设备 ${id} 响铃`,
+    message: `已停止设�?${id} 响铃`,
   });
 }
