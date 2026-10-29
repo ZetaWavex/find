@@ -39,7 +39,7 @@ async function hashSecret(secret: string): Promise<string> {
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -73,11 +73,11 @@ export default {
           name: "Find Phone Tool API",
           version: "1.0.0",
           endpoints: {
-            register: "POST /api/register - 注册新设�?,
-            heartbeat: "POST /api/heartbeat - 设备心跳",
-            status: "GET /api/status?id=DEVICE_ID&secret=SECRET - 查询响铃状�?,
-            ring: "POST /api/ring - 触发响铃",
-            stop: "POST /api/stop - 停止响铃",
+            register: "POST /api/register",
+            heartbeat: "POST /api/heartbeat",
+            status: "GET /api/status?id=X&secret=Y",
+            ring: "POST /api/ring",
+            stop: "POST /api/stop",
           },
         });
       }
@@ -92,10 +92,11 @@ export default {
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
   const body = await request.json<{ id: string; secret: string }>();
-  const { id, secret } = body;
+  const id = body.id;
+  const secret = body.secret;
 
   if (!id || !secret) {
-    return jsonResponse({ error: "设备ID和密钥不能为�? }, 400);
+    return jsonResponse({ error: "ID and secret required" }, 400);
   }
 
   const secretHash = await hashSecret(secret);
@@ -114,29 +115,30 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 
   return jsonResponse({
     success: true,
-    message: "设备注册成功",
+    message: "Device registered",
     deviceId: id,
   });
 }
 
 async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
   const body = await request.json<{ id: string; secret: string }>();
-  const { id, secret } = body;
+  const id = body.id;
+  const secret = body.secret;
 
   if (!id || !secret) {
-    return jsonResponse({ error: "设备ID和密钥不能为�? }, 400);
+    return jsonResponse({ error: "ID and secret required" }, 400);
   }
 
   const deviceRaw = await env.FIND_KV.get(`device:${id}`);
   if (!deviceRaw) {
-    return jsonResponse({ error: "设备未注�? }, 404);
+    return jsonResponse({ error: "Device not registered" }, 404);
   }
 
   const device = JSON.parse(deviceRaw) as DeviceRegistration;
   const secretHash = await hashSecret(secret);
 
   if (device.secret !== secretHash) {
-    return jsonResponse({ error: "密钥错误" }, 401);
+    return jsonResponse({ error: "Invalid secret" }, 401);
   }
 
   device.lastHeartbeat = Date.now();
@@ -150,19 +152,19 @@ async function handleStatus(url: URL, env: Env): Promise<Response> {
   const secret = url.searchParams.get("secret");
 
   if (!id || !secret) {
-    return jsonResponse({ error: "缺少参数 id �?secret" }, 400);
+    return jsonResponse({ error: "Missing id or secret" }, 400);
   }
 
   const deviceRaw = await env.FIND_KV.get(`device:${id}`);
   if (!deviceRaw) {
-    return jsonResponse({ error: "设备未注�? }, 404);
+    return jsonResponse({ error: "Device not registered" }, 404);
   }
 
   const device = JSON.parse(deviceRaw) as DeviceRegistration;
   const secretHash = await hashSecret(secret);
 
   if (device.secret !== secretHash) {
-    return jsonResponse({ error: "密钥错误" }, 401);
+    return jsonResponse({ error: "Invalid secret" }, 401);
   }
 
   const ringRaw = await env.FIND_KV.get(`ring:${id}`);
@@ -178,13 +180,14 @@ async function handleStatus(url: URL, env: Env): Promise<Response> {
     ringData = { ring: false, message: "", timestamp: Date.now() };
   }
 
-  if (ringData.ring) {
-    ringData.ring = false;
+  const wasRinging = ringData.ring;
+  if (wasRinging) {
+    ringData = { ...ringData, ring: false };
     await env.FIND_KV.put(`ring:${id}`, JSON.stringify(ringData));
   }
 
   return jsonResponse({
-    ring: ringData.ring,
+    ring: wasRinging,
     message: ringData.message,
     timestamp: ringData.timestamp,
   });
@@ -193,19 +196,20 @@ async function handleStatus(url: URL, env: Env): Promise<Response> {
 async function handleRing(request: Request, env: Env): Promise<Response> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return jsonResponse({ error: "需�?Authorization: Bearer API_SECRET" }, 401);
+    return jsonResponse({ error: "Authorization: Bearer API_SECRET required" }, 401);
   }
 
   const providedSecret = authHeader.slice(7);
   if (providedSecret !== env.API_SECRET) {
-    return jsonResponse({ error: "API 密钥错误" }, 401);
+    return jsonResponse({ error: "Invalid API secret" }, 401);
   }
 
   const body = await request.json<{ id: string; message?: string }>();
-  const { id, message = "手机响铃�? } = body;
+  const id = body.id;
+  const message = body.message ?? "Phone ringing";
 
   if (!id) {
-    return jsonResponse({ error: "需要设�?ID" }, 400);
+    return jsonResponse({ error: "Device ID required" }, 400);
   }
 
   const signal: RingSignal = {
@@ -218,26 +222,26 @@ async function handleRing(request: Request, env: Env): Promise<Response> {
 
   return jsonResponse({
     success: true,
-    message: `已触发设�?${id} 响铃`,
+    message: `Ring triggered for ${id}`,
   });
 }
 
 async function handleStop(request: Request, env: Env): Promise<Response> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return jsonResponse({ error: "需�?Authorization: Bearer API_SECRET" }, 401);
+    return jsonResponse({ error: "Authorization: Bearer API_SECRET required" }, 401);
   }
 
   const providedSecret = authHeader.slice(7);
   if (providedSecret !== env.API_SECRET) {
-    return jsonResponse({ error: "API 密钥错误" }, 401);
+    return jsonResponse({ error: "Invalid API secret" }, 401);
   }
 
   const body = await request.json<{ id: string }>();
-  const { id } = body;
+  const id = body.id;
 
   if (!id) {
-    return jsonResponse({ error: "需要设�?ID" }, 400);
+    return jsonResponse({ error: "Device ID required" }, 400);
   }
 
   await env.FIND_KV.put(`ring:${id}`, JSON.stringify({
@@ -248,6 +252,6 @@ async function handleStop(request: Request, env: Env): Promise<Response> {
 
   return jsonResponse({
     success: true,
-    message: `已停止设�?${id} 响铃`,
+    message: `Ring stopped for ${id}`,
   });
 }
