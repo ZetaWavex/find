@@ -1,4 +1,4 @@
-name = "find-phone-backend"
+name = "find"
 main = "src/index.ts"
 compatibility_date = "2025-10-24"
 
